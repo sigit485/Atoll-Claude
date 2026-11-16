@@ -7,6 +7,8 @@ Shows Claude Code sessions in Atoll's notch with an animated pixel mascot, and l
 
 ## Closed notch
 
+![Closed notch while Claude runs a Bash command, 15 seconds into the turn](images/notch-working.png)
+
 One live activity, for the most important session: one waiting on you, else the longest-running turn, else one that just finished.
 
 | State | Mascot | Notch text |
