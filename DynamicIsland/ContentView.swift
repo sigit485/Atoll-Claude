@@ -1566,6 +1566,9 @@ struct ContentView: View {
         case .recording:
             return recordingRightWingWidth(baseWidth: baseWidth)
         case .extensionPayload(let payload):
+            if isAnimatedExtensionIcon(secondary) {
+                return baseWidth
+            }
             let maxWidth = baseWidth + centerBaseWidth * 0.6
             return ExtensionLayoutMetrics.trailingWidth(for: payload, baseWidth: baseWidth, maxWidth: maxWidth)
         case .shelf:
@@ -1637,7 +1640,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private func albumArtBadge(for secondary: MusicSecondaryLiveActivity?, badgeSize: CGFloat) -> some View {
-        if let secondary, badgeSize > 0 {
+        if let secondary, badgeSize > 0, !isAnimatedExtensionIcon(secondary) {
             ZStack {
                 Circle()
                     .fill(Color.black)
@@ -1733,7 +1736,14 @@ struct ContentView: View {
         case .recording:
             spectrumView(forceSpectrum: true, trailingInset: 6)
         case .extensionPayload(let payload):
-            ExtensionMusicWingView(payload: payload, notchHeight: notchHeight, trailingWidth: trailingWidth)
+            if case let .lottie(animationData, _) = payload.descriptor.leadingIcon {
+                // The mascot art leaves empty margins in its canvas, so it can be as tall as the notch.
+                let side = notchHeight + 6
+                ExtensionLottieView(data: animationData, size: CGSize(width: side, height: side))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ExtensionMusicWingView(payload: payload, notchHeight: notchHeight, trailingWidth: trailingWidth)
+            }
         case .shelf(let count):
             // File count badge: bold white number, like a minimal pill
             Text("\(count)")
@@ -1825,6 +1835,14 @@ struct ContentView: View {
         guard window > 0 else { return false }
         let remaining = reminder.event.start.timeIntervalSince(now)
         return remaining > 0 && remaining <= window
+    }
+
+    // An animated icon is unreadable as a tiny album-art badge, so the music pairing shows it in the right wing instead.
+    private func isAnimatedExtensionIcon(_ secondary: MusicSecondaryLiveActivity?) -> Bool {
+        guard case let .extensionPayload(payload) = secondary, case .lottie = payload.descriptor.leadingIcon else {
+            return false
+        }
+        return true
     }
 
     private func extensionSecondaryPayloadID(for secondary: MusicSecondaryLiveActivity?) -> String? {

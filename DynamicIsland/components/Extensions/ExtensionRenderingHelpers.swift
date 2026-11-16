@@ -296,6 +296,8 @@ struct ExtensionLottieView: View {
                         loopMode: loopMode
                     )
                 )
+                // LottieUI only loads the animation when its NSView is created.
+                .id(cachedURL)
             } else {
                 ProgressView()
                     .controlSize(.small)
@@ -303,10 +305,8 @@ struct ExtensionLottieView: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .task {
-            if cachedURL == nil {
-                cachedURL = ExtensionLottieCache.shared.url(for: data)
-            }
+        .task(id: data) {
+            cachedURL = ExtensionLottieCache.shared.url(for: data)
         }
     }
 }
@@ -512,7 +512,8 @@ struct ExtensionCountdownTextView: View {
     }
 
     private func formattedRemaining(since date: Date) -> String {
-        let remaining = max(Int(targetDate.timeIntervalSince(date)), 0)
+        // A target date in the past counts up, so clients can show elapsed time.
+        let remaining = abs(Int(targetDate.timeIntervalSince(date)))
         let hours = remaining / 3600
         let minutes = (remaining % 3600) / 60
         let seconds = remaining % 60
@@ -559,7 +560,7 @@ enum ExtensionLayoutMetrics {
             let measured = ExtensionTextMeasurer.width(for: text, font: font.nsFont())
             return max(baseWidth, min(measured + 40, baseWidth * 2))
         case let .countdownText(targetDate, font: font, color: _):
-            let sample = targetDate.timeIntervalSinceNow >= 3600 ? "00:00:00" : "00:00"
+            let sample = abs(targetDate.timeIntervalSinceNow) >= 3600 ? "00:00:00" : "00:00"
             let measured = ExtensionTextMeasurer.width(for: sample, font: font.nsFont())
             return max(baseWidth, measured + 24)
         case .icon:

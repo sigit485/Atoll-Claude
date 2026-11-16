@@ -165,3 +165,5 @@ implementation_plan.md
 walkthrough.md
 TemporaryAssets/
 *.profraw
+!scripts/claude-notch/*.sh
+!scripts/claude-notch/*.py
