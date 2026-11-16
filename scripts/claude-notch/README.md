@@ -2,6 +2,8 @@
 
 Shows Claude Code sessions in Atoll's notch with an animated pixel mascot, and lets you answer permission prompts from the notch.
 
+![Atoll's notch on a desktop, showing the Claude mascot and the turn's elapsed time](images/notch-desktop.jpg)
+
 - `claude-notch-hook.sh` is the Claude Code hook. It POSTs each hook event to the daemon with `curl` and prints the daemon's reply. If nothing is listening, it starts the daemon.
 - `claude-notch-daemon.mjs` keeps every session's state in memory and is Atoll's only client (JSON-RPC over WebSocket on `127.0.0.1:9020`). It listens on `127.0.0.1:9021` and exits after 10 minutes with no sessions.
 
