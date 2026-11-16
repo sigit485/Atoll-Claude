@@ -39,7 +39,7 @@
 Atoll turns the MacBook notch into a focused command surface for media, system insight, and quick utilities. It stays out of the way until needed, then expands with responsive, native SwiftUI animations.
 
 <p align="center">
-  <img src="https://i.postimg.cc/t49mW5yN/Screenshot-2026-03-02-at-6-00-22-PM.png" alt="Atoll lock screen" width="920">
+  <a href="scripts/claude-notch"><img src="scripts/claude-notch/images/notch-desktop.jpg" alt="Atoll's notch showing the Claude Code mascot and the turn's elapsed time" width="920"></a>
 </p>
 
 
