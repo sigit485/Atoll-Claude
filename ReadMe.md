@@ -47,6 +47,7 @@ Atoll turns the MacBook notch into a focused command surface for media, system i
 
 
 ## Highlights
+- [Claude Code in the notch](scripts/claude-notch): an animated mascot shows what each session is doing with an elapsed timer, a Claude tab lists sessions, and permission prompts can be allowed or denied from the notch.
 - Media controls for Apple Music, Spotify, Cider, and more with inline previews.
 - Live Activities for media playback, Focus, screen recording, privacy indicators, downloads (beta), and battery/charging.
 - Lock screen widgets for media, timers, charging, Bluetooth devices, and weather.
