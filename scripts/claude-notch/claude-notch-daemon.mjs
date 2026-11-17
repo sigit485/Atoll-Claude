@@ -20,6 +20,8 @@ const REVEAL_AFTER_MS = 10_000;
 const DONE_VISIBLE_MS = 4000;
 const IDLE_EXIT_MS = 10 * 60 * 1000;
 const STALE_MS = 2 * 60 * 60 * 1000;
+const INTERRUPT_CHECK_MS = 5000;
+const TRANSCRIPT_TAIL_BYTES = 64 * 1024;
 const SUMMARY_MAX_CHARS = 90;
 const DONE_SOUND = '/System/Library/Sounds/Glass.aiff';
 const ATTENTION_SOUND = '/System/Library/Sounds/Purr.aiff';
@@ -139,6 +141,7 @@ function sessionFor(event, ppid) {
     sessions.set(id, session);
   }
   if (event.cwd) session.cwd = event.cwd;
+  if (event.transcript_path) session.transcript = event.transcript_path;
   session.seenAt = Date.now();
   return session;
 }
@@ -178,6 +181,41 @@ function clearPermissions(session) {
 function goIdle(session) {
   clearPermissions(session);
   if (session.status !== 'done') session.status = 'idle';
+}
+
+// Time of the interrupt marker if it is the last message in the transcript. Esc, or "No" at a
+// permission prompt, ends the turn without Stop, and the idle_prompt fallback does not always come.
+function interruptedAt(transcript) {
+  let text;
+  try {
+    const fd = fs.openSync(transcript, 'r');
+    try {
+      const size = fs.fstatSync(fd).size;
+      const length = Math.min(size, TRANSCRIPT_TAIL_BYTES);
+      const buffer = Buffer.alloc(length);
+      fs.readSync(fd, buffer, 0, length, size - length);
+      text = buffer.toString('utf8');
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return undefined;
+  }
+  const lines = text.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let entry;
+    try {
+      entry = JSON.parse(lines[i]);
+    } catch {
+      continue;
+    }
+    if (entry.type !== 'user' && entry.type !== 'assistant') continue;
+    const content = entry.message?.content;
+    const interrupted =
+      Array.isArray(content) && content.some((part) => part.type === 'text' && part.text?.startsWith('[Request interrupted by user'));
+    return interrupted ? Date.parse(entry.timestamp) : undefined;
+  }
+  return undefined;
 }
 
 function trackTasks(session, toolName, toolInput = {}) {
@@ -625,6 +663,17 @@ const server = http.createServer(async (req, res) => {
 // The port doubles as a single-instance lock: a second daemon fails here and exits.
 server.on('error', () => process.exit(0));
 server.listen(PORT, '127.0.0.1', connect);
+
+// Comparing with turnStart ignores the marker left by an earlier turn.
+setInterval(() => {
+  for (const session of sessions.values()) {
+    if (session.status !== 'working' && session.status !== 'attention') continue;
+    if (session.transcript && interruptedAt(session.transcript) > session.turnStart) {
+      goIdle(session);
+      render();
+    }
+  }
+}, INTERRUPT_CHECK_MS);
 
 // Sessions that ended without SessionEnd (crash, closed terminal) drop out here; with none left
 // for a while the daemon exits, and the next hook event starts it again.
