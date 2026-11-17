@@ -1391,7 +1391,9 @@ extension Defaults.Keys {
     static let extensionLiveActivityCapacity = Key<Int>("extensionLiveActivityCapacity", default: 4)
     static let extensionLockScreenWidgetCapacity = Key<Int>("extensionLockScreenWidgetCapacity", default: 4)
     static let extensionNotchExperienceCapacity = Key<Int>("extensionNotchExperienceCapacity", default: 2)
-    static let enableExtensionFileSharing = Key<Bool>("enableExtensionFileSharing", default: true)
+    // Off by default: RPC clients are authorized automatically and name themselves, so any of them
+    // would otherwise read every file on the Shelf.
+    static let enableExtensionFileSharing = Key<Bool>("enableExtensionFileSharing", default: false)
     
     // MARK: Keyboard Shortcuts
     static let enableShortcuts = Key<Bool>("enableShortcuts", default: true)

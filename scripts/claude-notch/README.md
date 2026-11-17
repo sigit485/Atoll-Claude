@@ -4,8 +4,8 @@ Shows Claude Code sessions in Atoll's notch with an animated pixel mascot, and l
 
 ![Atoll's notch on a desktop, showing the Claude mascot and the turn's elapsed time](images/notch-desktop.jpg)
 
-- `claude-notch-hook.sh` is the Claude Code hook. It POSTs each hook event to the daemon with `curl` and prints the daemon's reply. If nothing is listening, it starts the daemon.
-- `claude-notch-daemon.mjs` keeps every session's state in memory and is Atoll's only client (JSON-RPC over WebSocket on `127.0.0.1:9020`). It listens on `127.0.0.1:9021` and exits after 10 minutes with no sessions.
+- `claude-notch-hook.sh` is the Claude Code hook. It POSTs each hook event to the daemon with `curl` over the Unix socket `~/.claude/atoll-notch/hook.sock` and prints the daemon's reply. If nothing is listening, it starts the daemon.
+- `claude-notch-daemon.mjs` keeps every session's state in memory and is Atoll's only client (JSON-RPC over WebSocket on `127.0.0.1:9020`). It serves the notch tab on `127.0.0.1:9021` and exits after 10 minutes with no sessions.
 
 ## Closed notch
 
@@ -32,7 +32,7 @@ Lists up to six sessions with their status, elapsed time, todos and Claude's las
 - Click a row to bring its terminal or IDE to the front: Terminal.app selects the session's tab, VS Code-style editors open the window for the session's folder, and other apps (such as Xirp) are activated.
 - A session waiting for permission shows the request with **Izinkan** and **Tolak**. The terminal prompt stays open at the same time, and whichever answers first wins. Questions (`AskUserQuestion`, `ExitPlanMode`) are answered in the terminal.
 
-The tab is a web view that polls the daemon. Its requests carry a random per-run token, because any web page can reach `127.0.0.1`.
+The tab is a web view that polls the daemon. Its requests carry a random per-run token, because any web page can reach `127.0.0.1`, and the daemon refuses any `Host` other than `127.0.0.1:9021` or `localhost:9021` (DNS rebinding). Hook events never use the TCP port: the daemon's reply to a `PermissionRequest` is applied by Claude Code, so it listens for them on a socket in a directory only you can open.
 
 ## Install
 

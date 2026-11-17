@@ -101,6 +101,12 @@ final class ExtensionRPCServer {
         let params = NWParameters(tls: nil)
         let wsOptions = NWProtocolWebSocket.Options()
         wsOptions.autoReplyPing = true
+        // Browsers always send Origin; native clients such as Node's WebSocket do not. Loopback alone
+        // does not stop a web page, which can open ws://127.0.0.1 and claim any bundle identifier.
+        wsOptions.setClientRequestHandler(queue) { _, headers in
+            let fromBrowser = headers.contains { $0.name.caseInsensitiveCompare("Origin") == .orderedSame }
+            return NWProtocolWebSocket.Response(status: fromBrowser ? .reject : .accept, subprotocol: nil)
+        }
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         // Without this the listener takes the wildcard address and the port is
         // reachable from the local network.

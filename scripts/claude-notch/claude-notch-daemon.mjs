@@ -2,6 +2,7 @@
 // Owns all Claude Code session state and is Atoll's only client; claude-notch-hook.sh POSTs every
 // hook event here. See README.md.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -9,6 +10,9 @@ import { execFile, execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const PORT = 9021;
+// Keep in sync with claude-notch-hook.sh.
+const HOOK_SOCKET = path.join(os.homedir(), '.claude', 'atoll-notch', 'hook.sock');
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 const RPC_URL = 'ws://127.0.0.1:9020';
 const BUNDLE_ID = 'com.anthropic.claude-code';
 const WORKING_ID = 'claude-code-working';
@@ -605,11 +609,17 @@ function connect() {
     pending.get(reply.id)?.();
     pending.delete(reply.id);
   };
-  socket.onclose = () => {
-    for (const resolve of pending.values()) resolve();
-    pending.clear();
-    setTimeout(connect, 3000);
-  };
+  socket.onclose = reconnectLater;
+  // A refused connection (Atoll not running) fires error without close.
+  socket.onerror = reconnectLater;
+}
+
+let retry;
+function reconnectLater() {
+  for (const resolve of pending.values()) resolve();
+  pending.clear();
+  clearTimeout(retry);
+  retry = setTimeout(connect, 3000);
 }
 
 function readBody(req) {
@@ -620,21 +630,25 @@ function readBody(req) {
   });
 }
 
+// Hook events arrive on a Unix socket in a 0700 directory, not on the TCP port: Claude Code applies
+// whatever answers a PermissionRequest, so the listener must not be one that another local user
+// (taking the port while the daemon is down) or a web page could be.
+const hookServer = http.createServer(async (req, res) => {
+  const url = new URL(req.url, 'http://localhost');
+  if (url.pathname !== '/hook' || req.method !== 'POST') return res.writeHead(404).end();
+  try {
+    if (handle(JSON.parse(await readBody(req)), Number(url.searchParams.get('ppid')), res)) return;
+  } catch (error) {
+    console.error(error);
+  }
+  if (!res.writableEnded) res.writeHead(204).end();
+});
+
 const server = http.createServer(async (req, res) => {
+  // A DNS-rebinding page reaches 127.0.0.1 under its own host name.
+  if (!ALLOWED_HOSTS.has(req.headers.host)) return res.writeHead(421).end();
   const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
   const query = Object.fromEntries(url.searchParams);
-  // Hook events come from curl. Requiring a JSON content type makes browsers send a CORS preflight,
-  // which is refused, so web pages cannot inject events.
-  if (url.pathname === '/hook' && req.method === 'POST') {
-    if (!req.headers['content-type']?.startsWith('application/json')) return res.writeHead(415).end();
-    try {
-      if (handle(JSON.parse(await readBody(req)), Number(query.ppid), res)) return;
-    } catch (error) {
-      console.error(error);
-    }
-    if (!res.writableEnded) res.writeHead(204).end();
-    return;
-  }
   res.setHeader('Access-Control-Allow-Origin', '*');
   if (query.token !== TOKEN) return res.writeHead(403).end();
   const session = sessions.get(query.session ?? '');
@@ -662,7 +676,14 @@ const server = http.createServer(async (req, res) => {
 });
 // The port doubles as a single-instance lock: a second daemon fails here and exits.
 server.on('error', () => process.exit(0));
-server.listen(PORT, '127.0.0.1', connect);
+server.listen(PORT, '127.0.0.1', () => {
+  const dir = path.dirname(HOOK_SOCKET);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  // Left behind by a daemon that exited; holding the port means no other daemon is using it.
+  fs.rmSync(HOOK_SOCKET, { force: true });
+  hookServer.listen(HOOK_SOCKET, connect);
+});
 
 // Comparing with turnStart ignores the marker left by an earlier turn.
 setInterval(() => {
